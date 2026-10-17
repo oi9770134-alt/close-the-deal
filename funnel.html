@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Close the Deal: Funnel</title>
+<style>
+:root{--ink:#0b1f3b;--mut:#5b6678;--bg:#f3f5f9;--card:#fff;--line:#e1e6ee;--gold:#f5b800;--ok:#1f9d55;--bad:#d64545}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.w{max-width:880px;margin:0 auto;padding:16px}h1{font-size:1.4rem;margin:6px 0}h2{font-size:1.05rem;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0}
+.mut{color:var(--mut)}.small{font-size:.85rem}.tiny{font-size:.75rem}
+button,select,input[type=file],textarea{font:inherit}button{background:var(--ink);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}button.alt{background:#e8ecf3;color:var(--ink)}
+textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:10px;padding:8px}
+select{border:1px solid var(--line);border-radius:8px;padding:6px;max-width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.tile{background:#f7f9fc;border:1px solid var(--line);border-radius:12px;padding:10px}.tile b{display:block;font-size:1.5rem}
+.f{display:grid;grid-template-columns:150px 1fr 90px;gap:8px;align-items:center;margin:6px 0}.f .bar{height:18px;background:#e8ecf3;border-radius:99px;overflow:hidden}.f .bar i{display:block;height:100%;background:var(--gold)}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:.88rem}th{color:var(--mut);font-weight:600}td.r,th.r{text-align:right}
+.demo{background:#fff1d6;border:2px dashed #e0a100;border-radius:12px;padding:10px;font-weight:700;margin:12px 0}
+.warn{color:#8a5a00}pre{white-space:pre-wrap;background:#0b1f3b;color:#e6eaf0;padding:12px;border-radius:12px;font-size:.85rem}
+@media(max-width:520px){.f{grid-template-columns:110px 1fr 70px}}
+</style></head><body><div class="w">
+<h1>Close the Deal: Funnel</h1>
+<p class="mut small">Private dashboard. Your data never leaves this page: the file you pick is read in your browser only. In Google Sheets open the <b>Events</b> sheet, then File → Download → Comma-separated values (.csv), and choose it here.</p>
+<div class="card"><div class="row"><input type="file" id="file" accept=".csv,text/csv,text/plain"><button class="alt" id="demo">Show demo (fake data)</button></div>
+<p class="tiny mut" style="margin:8px 0 0">Or paste CSV text:</p><textarea id="paste" placeholder="Paste CSV rows here, including the header row"></textarea><button id="go" class="alt" style="margin-top:6px">Use pasted text</button>
+<div id="map" class="small" style="margin-top:10px"></div></div>
+<div id="out"></div></div>
+<script>
+const $=id=>document.getElementById(id);let ROWS=[],HEAD=[],isDemo=false;
+function parseCSV(t){const rows=[];let r=[],f='',q=false;t=t.replace(/^﻿/,'');for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}else if(c=='"')q=true;else if(c==','){r.push(f);f=''}else if(c=='\n'||c=='\r'){if(c=='\r'&&t[i+1]=='\n')i++;r.push(f);f='';if(r.some(x=>x!==''))rows.push(r);r=[]}else f+=c}if(f!==''||r.length){r.push(f);rows.push(r)}return rows}
+const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function guess(names){for(const n of names){const i=HEAD.findIndex(h=>norm(h)===n);if(i>=0)return i}for(const n of names){const i=HEAD.findIndex(h=>norm(h).includes(n));if(i>=0)return i}return -1}
+const FIELDS=[['event','Event name',['event','type','eventtype']],['time','Time',['at','timestamp','time','date','created']],['reason','Reason / details',['reason']],['email','Email',['email']],['name','Name',['name']],['profit','Profit',['profit']],['character','Character',['character']]];
+let COL={};
+function load(text){const t=parseCSV(text);if(t.length<2){$('out').innerHTML='<div class="card warn">That file has no data rows.</div>';return}HEAD=t[0].map(x=>x.trim());ROWS=t.slice(1);COL={};for(const[k,,g]of FIELDS)COL[k]=guess(g);drawMap();run()}
+function drawMap(){const opts=['<option value="-1">(none)</option>'].concat(HEAD.map((h,i)=>`<option value="${i}">${esc(h||'column '+(i+1))}</option>`)).join('');$('map').innerHTML='<b>Columns found.</b> Fix any that are wrong:<div class="row" style="margin-top:6px">'+FIELDS.map(([k,l])=>`<label>${l}<br><select data-k="${k}">${opts}</select></label>`).join('')+'</div>';document.querySelectorAll('#map select').forEach(s=>{s.value=COL[s.dataset.k];s.onchange=()=>{COL[s.dataset.k]=+s.value;run()}})}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const get=(r,k)=>COL[k]>=0?String(r[COL[k]]??'').trim():'';
+function meta(s){const o={};String(s||'').split(';').forEach(p=>{const i=p.indexOf('=');if(i>0)o[p.slice(0,i).trim()]=p.slice(i+1).trim()});return o}
+function day(s){const d=new Date(s);return isNaN(d)?'':d.toISOString().slice(0,10)}
+const pct=(a,b)=>b?Math.round(a/b*100)+'%':'–';
+function run(){
+  if(COL.event<0){$('out').innerHTML='<div class="card warn">Choose which column holds the event name.</div>';return}
+  const ev=ROWS.map((r,i)=>{const m=meta(get(r,'reason'));const id=m.vid||get(r,'email').toLowerCase()||get(r,'name').toLowerCase()||'';return{e:get(r,'event').toLowerCase(),m,id,day:day(get(r,'time')),profit:parseFloat(get(r,'profit')),raw:get(r,'reason'),r}});
+  const noId=ev.filter(x=>!x.id).length;
+  const S=(f)=>new Set(ev.filter(f).filter(x=>x.id).map(x=>x.id));
+  const land=S(x=>x.e==='landing_view'),vis=S(x=>x.e==='visit'),st=S(x=>x.e==='game_start'),w1=S(x=>x.e==='week_end'&&+x.m.wk>=1),w2=S(x=>x.e==='week_end'&&+x.m.wk>=2),fin=S(x=>x.e==='game_end'),rep=S(x=>x.e==='report_view'||x.e==='game_end'),cert=S(x=>x.e==='cert_make'),shr=S(x=>['share','invite_share','board_post'].includes(x.e)),prof=S(x=>x.e==='profile'||x.e==='signup'),offer=S(x=>x.e==='offer_click');
+  const top=Math.max(vis.size,st.size,1);
+  const stages=[['Saw landing page',land],['Opened the game',vis],['Started a game',st],['Finished week 1',w1],['Finished week 2',w2],['Finished the journey',fin],['Opened the report',rep],['Made a certificate',cert],['Shared or invited',shr]];
+  let h='';if(isDemo)h+='<div class="demo">DEMO DATA. These numbers are fake and only show how the page looks. Never quote them.</div>';
+  h+=`<div class="card"><h2>Overview</h2><div class="grid"><div class="tile"><span class="small mut">Rows read</span><b>${ROWS.length}</b></div><div class="tile"><span class="small mut">Unique people</span><b>${new Set(ev.filter(x=>x.id).map(x=>x.id)).size}</b></div><div class="tile"><span class="small mut">Started a game</span><b>${st.size}</b></div><div class="tile"><span class="small mut">Finished</span><b>${fin.size}</b><span class="small mut">${pct(fin.size,st.size)} of starters</span></div></div>${noId?`<p class="tiny warn">${noId} rows have no visitor id, email or name, so they are not counted per person.</p>`:''}</div>`;
+  h+='<div class="card"><h2>Funnel (people, counted once each)</h2>'+stages.map(([n,s],i)=>{const prev=i?stages[i-1][1].size:s.size;return `<div class="f"><span>${n}</span><div class="bar"><i style="width:${Math.min(100,s.size/top*100)}%"></i></div><span><b>${s.size}</b> <span class="tiny mut">${i?pct(s.size,prev):''}</span></span></div>`}).join('')+'<p class="tiny mut">Percent is of the stage above. A stage can be larger than the one above it when it includes players from before tracking began.</p></div>';
+  // sources
+  const visits=ev.filter(x=>x.e==='visit'&&x.id),bySrc={};visits.forEach(x=>{const k=x.m.src||'unknown';(bySrc[k]=bySrc[k]||new Set()).add(x.id)});
+  const rowFor=(set)=>{let a=0,b=0;set.forEach(id=>{if(st.has(id))a++;if(fin.has(id))b++});return[a,b]};
+  const srcRows=Object.entries(bySrc).sort((a,b)=>b[1].size-a[1].size).map(([k,s])=>{const[a,b]=rowFor(s);return `<tr><td>${esc(k)}</td><td class="r">${s.size}</td><td class="r">${a} <span class="tiny mut">${pct(a,s.size)}</span></td><td class="r">${b} <span class="tiny mut">${pct(b,a)}</span></td></tr>`}).join('');
+  h+=`<div class="card"><h2>Where players come from</h2>${srcRows?`<table><tr><th>Source</th><th class="r">Visitors</th><th class="r">Started</th><th class="r">Finished</th></tr>${srcRows}</table>`:'<p class="mut small">No visit events yet. They appear once the new version of the game is live and the Make scenario passes them on.</p>'}</div>`;
+  // invites
+  const byInv={};visits.forEach(x=>{if(x.m.inv)(byInv[x.m.inv]=byInv[x.m.inv]||new Set()).add(x.id)});
+  const invRows=Object.entries(byInv).sort((a,b)=>b[1].size-a[1].size).slice(0,15).map(([k,s])=>{const[a,b]=rowFor(s);return `<tr><td>${esc(k)}</td><td class="r">${s.size}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`}).join('');
+  const invited=new Set();Object.values(byInv).forEach(s=>s.forEach(i=>invited.add(i)));
+  h+=`<div class="card"><h2>Invites</h2><p class="small mut">${invited.size} people arrived through an invite link. ${new Set(ev.filter(x=>x.e==='invite_share'&&x.id).map(x=>x.id)).size} players shared the game.</p>${invRows?`<table><tr><th>Inviter code</th><th class="r">Brought</th><th class="r">Started</th><th class="r">Finished</th></tr>${invRows}</table>`:''}</div>`;
+  // campaigns & devices
+  const cmp={},dev={m:0,d:0},ret={y:0,n:0};visits.forEach(x=>{if(x.m.cmp)cmp[x.m.cmp]=(cmp[x.m.cmp]||0)+1;if(x.m.dev)dev[x.m.dev]=(dev[x.m.dev]||0)+1;x.m.ret==='1'?ret.y++:ret.n++});
+  h+=`<div class="card"><h2>Audience</h2><div class="grid"><div class="tile"><span class="small mut">On a phone</span><b>${pct(dev.m,dev.m+dev.d)}</b></div><div class="tile"><span class="small mut">Returning visits</span><b>${pct(ret.y,ret.y+ret.n)}</b></div></div>${Object.keys(cmp).length?'<table style="margin-top:8px"><tr><th>Campaign</th><th class="r">Visits</th></tr>'+Object.entries(cmp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="r">${v}</td></tr>`).join('')+'</table>':''}</div>`;
+  // retention
+  const days={};ev.forEach(x=>{if(x.id&&x.day)(days[x.id]=days[x.id]||new Set()).add(x.day)});const multi=Object.values(days).filter(s=>s.size>=2).length,tot=Object.keys(days).length;
+  const perDay={};ev.forEach(x=>{if(x.id&&x.day)(perDay[x.day]=perDay[x.day]||new Set()).add(x.id)});
+  h+=`<div class="card"><h2>Coming back</h2><p>${multi} of ${tot} people (${pct(multi,tot)}) were active on 2 or more different days.</p><table><tr><th>Day</th><th class="r">People</th></tr>${Object.entries(perDay).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,14).map(([d,s])=>`<tr><td>${d}</td><td class="r">${s.size}</td></tr>`).join('')}</table></div>`;
+  // results
+  const ends=ev.filter(x=>x.e==='game_end'&&!isNaN(x.profit)).map(x=>x.profit).sort((a,b)=>a-b);const med=ends.length?ends[Math.floor(ends.length/2)]:null;
+  const ex={};ev.filter(x=>x.e==='exit_reason').forEach(x=>{const k=x.raw.replace(/\s*\(week \d+\)/,'');ex[k]=(ex[k]||0)+1});
+  h+=`<div class="card"><h2>Results and drop-off</h2><p class="small">${ends.length} finished games with a profit value. Median profit: <b>${med==null?'–':Math.round(med).toLocaleString()}</b>. ${ends.length?Math.round(ends.filter(p=>p>0).length/ends.length*100)+'% made a profit.':''}</p>${Object.keys(ex).length?'<table><tr><th>Why players said they slowed down</th><th class="r">Count</th></tr>'+Object.entries(ex).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="r">${v}</td></tr>`).join('')+'</table>':''}</div>`;
+  const fail3=S(x=>x.e==='3d_fail'),slow3=S(x=>x.e==='3d_slow'),errP=S(x=>x.e==='error');const errs={};ev.filter(x=>x.e==='error').forEach(x=>{const k=(x.m.m||'?')+' ('+(x.m.w||'?')+')';errs[k]=(errs[k]||0)+1});const base=Math.max(vis.size,st.size,1);
+  h+=`<div class="card"><h2>Phones and crashes</h2><div class="grid"><div class="tile"><span class="small mut">3D could not run</span><b>${fail3.size}</b><span class="small mut">${pct(fail3.size,base)} of players</span></div><div class="tile"><span class="small mut">3D ran slowly</span><b>${slow3.size}</b><span class="small mut">${pct(slow3.size,base)}</span></div><div class="tile"><span class="small mut">Saw an error</span><b>${errP.size}</b><span class="small mut">${pct(errP.size,base)}</span></div></div>${Object.keys(errs).length?'<table style="margin-top:8px"><tr><th>Error</th><th class="r">Count</th></tr>'+Object.entries(errs).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="r">${v}</td></tr>`).join('')+'</table>':'<p class="small mut">No errors reported.</p>'}</div>`;
+  const txt=`${isDemo?'[DEMO DATA, DO NOT QUOTE]\n':''}Close the Deal: snapshot\nPeople who opened the game: ${vis.size||st.size}\nStarted a game: ${st.size}\nFinished the 3-week journey: ${fin.size} (${pct(fin.size,st.size)} of starters)\nMade a certificate: ${cert.size}\nShared or invited: ${shr.size}\nPeople active on 2+ days: ${multi} (${pct(multi,tot)})\nArrived through invite links: ${invited.size}`;
+  h+=`<div class="card"><h2>Snapshot to copy</h2><pre id="snap">${esc(txt)}</pre><button id="copy" class="alt">Copy</button></div>`;
+  $('out').innerHTML=h;$('copy').onclick=()=>{navigator.clipboard?.writeText(txt);$('copy').textContent='Copied'};
+}
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;isDemo=false;const r=new FileReader();r.onload=()=>load(r.result);r.readAsText(f)};
+$('go').onclick=()=>{isDemo=false;load($('paste').value)};
+$('demo').onclick=()=>{
+  isDemo=true;const L=['event,at,reason,email,name,profit,character'],srcs=['whatsapp','instagram','landing','direct','invite'];
+  for(let p=0;p<120;p++){
+    const vid='d'+p,src=srcs[p%5],t=(k)=>`2026-10-${String(11+(p%9)).padStart(2,'0')}T1${k}:00:00Z`,inv=src==='invite'?';inv=AB'+(p%3):'';
+    L.push(`visit,${t(0)},vid=${vid};src=${src}${inv};dev=m;ret=${p%7==0?1:0},,,,`);
+    if(p%5===4)continue;
+    L.push(`game_start,${t(1)},vid=${vid};src=${src},,,,amara`);
+    if(p%3===0)continue;
+    L.push(`week_end,${t(2)},vid=${vid};wk=1,,,,amara`);
+    if(p%2===0)continue;
+    L.push(`week_end,${t(3)},vid=${vid};wk=2,,,,amara`);
+    if(p%4===0)continue;
+    L.push(`game_end,${t(4)},vid=${vid},,,${p*900-40000},amara`);
+    L.push(`report_view,${t(4)},vid=${vid},,,,`);
+    if(p%2)L.push(`cert_make,${t(5)},vid=${vid},,,,`);
+    if(p%3===1)L.push(`invite_share,${t(5)},vid=${vid};kind=invite,,,,`);
+  }
+  load(L.join('\n'));
+};
+</script></body></html>
